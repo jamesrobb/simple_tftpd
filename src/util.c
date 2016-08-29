@@ -1,9 +1,13 @@
 #include "util.h"
 
-int find_string_terminator(char* buffer, int start) {
+int find_string_terminator(char* buffer, int buffer_len, int start) {
 	int end_index = 0;
 
-	for(int i = start; i < sizeof(buffer); i++) {
+    //printf("buffer siize: %ld\n", sizeof(buffer));
+
+	for(int i = start; i < buffer_len; i++) {
+
+        //printf("buffer val: %d\n", buffer[i]);
 
 		if(buffer[i] == 0x0) {
 			return i;

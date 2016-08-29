@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-int find_string_terminator(char* buffer, int start);
+int find_string_terminator(char* buffer, int buffer_len, int start);
 
 void print_usage();
 
