@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
 
 				if(!resend_last) {
 					memset(&file_buffer, 0, sizeof(file_buffer));
-					num_bytes_read = fread(file_buffer, 1, 512, rq_file);
+					num_bytes_read = fread(file_buffer, (size_t) sizeof(unsigned char), 512, rq_file);
 
 					last_num_bytes_read = num_bytes_read;
 					strncpy(last_file_buffer, file_buffer, num_bytes_read);
