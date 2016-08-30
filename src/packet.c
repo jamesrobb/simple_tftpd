@@ -2,7 +2,7 @@
 #include "packet.h"
 #include "util.h"
 
-void read_request_packet(char buffer[], rqpacket_t* req_packet) {
+void read_request_packet(rqpacket_t* req_packet, char buffer[]) {
 
 	req_packet->opcode = buffer[1];
 
@@ -15,10 +15,19 @@ void read_request_packet(char buffer[], rqpacket_t* req_packet) {
     //printf("mode_end: %d\n", mode_end);
     strncpy(req_packet->mode, buffer + mode_start, mode_end - mode_start + 1);
 
+    for(int i = 0; i < 10; i++) {
+
+        if(req_packet->mode[i] == '\0') {
+            break;
+        }
+
+        req_packet->mode[i] = tolower(req_packet->mode[i]);
+    }
+
 	return;
 }
 
-void read_ack_packet(char buffer[], ackpacket_t* ack_packet) {
+void read_ack_packet(ackpacket_t* ack_packet, char buffer[]) {
 
 	ack_packet->opcode = buffer[1];
     ack_packet->block_number = 0;

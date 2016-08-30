@@ -12,8 +12,94 @@
 #include "packet.h"
 #include "util.h"
 
+#define FILE_NOT_FOUND	1
+
+typedef struct _clientconn_ {
+	FILE* fp;
+	char mode[10];
+	uint16_t block_number;
+	unsigned short port_number;
+	uint8_t available;
+} clientconn_t;
+
+int find_client_conn(clientconn_t* client_conns, uint8_t client_conns_len, unsigned short client_port_number) {
+
+	for(uint8_t i = 0; i < client_conns_len; i++) {
+
+		if(client_conns[i].port_number == client_port_number) {
+			return i;
+		}
+
+	}
+
+	return -1;
+}
+
+int find_free_client_conn(clientconn_t* client_conns, uint8_t client_conns_len) {
+
+	for(uint8_t i = 0; i < client_conns_len; i++) {
+
+		if(client_conns[i].available == 1) {
+			return i;
+		}
+
+	}
+
+	return -1;
+}
+
+int intialize_client_conn(clientconn_t* client_conn, char buffer[], struct sockaddr_in* client) {
+
+	rqpacket_t req_packet;
+	read_request_packet(&req_packet, buffer);
+
+	//printf("reqpacketfile: %d\n", req_packet.filename[4]);
+
+	char file_location[20];
+	memset(&file_location, 0, 19);
+
+	strcpy(file_location, "../data/");
+	strcat(file_location, req_packet.filename);
+
+	strcpy(client_conn->mode, req_packet.mode);
+
+	if(strcmp(client_conn->mode, "netascii")) {
+		client_conn->fp = fopen(file_location, "r");
+	} else {
+		client_conn->fp = fopen(file_location, "r+b");
+	}
+
+	client_conn->port_number = client->sin_port;
+
+	printf("new connection (file, mode, port): %s, %s, %d\n", file_location, client_conn->mode, client_conn->port_number);
+
+	if(client_conn->fp == NULL) {
+		// could not open file
+		perror("connection failed (file not found)");
+
+		return FILE_NOT_FOUND;
+	}
+
+	client_conn->available = 0;
+
+	return 0;
+}
 
 int main(int argc, char *argv[]) {
+
+	uint8_t max_conns = 10;
+
+	clientconn_t client_conns[max_conns];
+
+	for(uint8_t i = 0; i < 10; i++) {
+		clientconn_t new_conn_struct;
+		strcpy(new_conn_struct.mode, "");
+		new_conn_struct.block_number = 0;
+		new_conn_struct.port_number = 0;
+		new_conn_struct.available = 1;
+
+		client_conns[i] = new_conn_struct;
+	}
 
 	// variable declerations
 	int sockfd, connfd;
@@ -28,7 +114,7 @@ int main(int argc, char *argv[]) {
 
 	port = atoi(argv[1]);
 
-	// create and bind a tcp socket
+	// create and bind a udp socket
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if(sockfd == -1) {
 		perror("unable to create socket");
@@ -57,17 +143,54 @@ int main(int argc, char *argv[]) {
 	while(1) {
 
 		int num_bytes_received;
+		int no_free_connections = 0;
+		int opcode_recv = -1;
+		clientconn_t* current_conn;
 		char buffer[PACKET_SIZE];
 		socklen_t len = (socklen_t) sizeof(client);
 		rqpacket_t req_header;
 
+		int free_conn_number = -1;
+		int conn_number = -1;
+
 		memset(&buffer, 0, sizeof(buffer));
 
 		num_bytes_received = recvfrom(sockfd, buffer, PACKET_SIZE, 0, (struct sockaddr*) &client, &len);
-
 		if(num_bytes_received == -1) {
 			perror("recvfrom error");
+			continue;
 		}
+
+		opcode_recv = read_opcode(buffer);
+		printf("opcode_rev: %d\n", opcode_recv);
+
+		switch(opcode_recv) {
+
+			case OPCODE_READ:
+
+				free_conn_number = find_free_client_conn(client_conns, max_conns);
+
+				if(free_conn_number < 0) {
+					// could not find any free connections to use
+					// error handling
+					printf("connection discarded: no free connection\n");
+					no_free_connections = 1;
+					break;
+				}
+
+				conn_number = free_conn_number;
+				current_conn = &client_conns[free_conn_number];
+				intialize_client_conn(current_conn, buffer, &client);
+
+				break;
+
+			case OPCODE_ACK:
+				// something
+				break;
+
+		}
+
+		continue;
 
 		//printf("received %d bytes\n", num_bytes);
 
@@ -75,7 +198,7 @@ int main(int argc, char *argv[]) {
 			buffer[PACKET_SIZE-1] = '\0';
 			//printf("b: %s\n", buffer);
 
-			read_request_packet(buffer, &req_header);
+			read_request_packet(&req_header, buffer);
 
 			printf("opcode: %d\n", req_header.opcode);
 			printf("file name: %s\n", req_header.filename);
@@ -165,7 +288,7 @@ int main(int argc, char *argv[]) {
 
 						if(opcode == OPCODE_ACK) {
 							ackpacket_t ack_packet;
-							read_ack_packet(buffer, &ack_packet);
+							read_ack_packet(&ack_packet, buffer);
 
 							printf("block_number: %d, ack_num: %d\n", block_number, ack_packet.block_number);
 
