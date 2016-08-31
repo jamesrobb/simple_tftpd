@@ -108,6 +108,10 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 			clientconn_info->last_num_bytes_read = num_bytes_read;
 		}
 
+		if(num_bytes_read < DATA_SIZE) {
+			clientconn_info->complete = 1;
+		}
+
 		send_buffer[1] = OPCODE_DATA;
 		send_buffer[2] = (clientconn_info->block_number >> 8) & 0xFF;
 		send_buffer[3] = clientconn_info->block_number & 0xFF;
@@ -132,13 +136,14 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 
 	}
 
-	printf("sending block numbers %d %d to port %d\n", send_buffer[2], send_buffer[3], clientconn_info->port_number);
+	printf("sending block numbers %d %d %d to port %d\n", clientconn_info->block_number, send_buffer[2], send_buffer[3], clientconn_info->port_number);
 
 	int bytes_sent = sendto(sockfd, send_buffer, 4 + num_bytes_read, 0, client, client_len);
 
 	printf("bytes_sent %d to %d\n", bytes_sent, clientconn_info->port_number);
 
 	if(bytes_sent == -1) {
+		clientconn_info->complete = 0;
 		clientconn_info->retry_last_data = 1;
 	} else {
 		clientconn_info->block_number++;
@@ -252,7 +257,29 @@ int main(int argc, char *argv[]) {
 				break;
 
 			case OPCODE_ACK:
-				//
+
+				conn_number = find_clientconn_info(clientconn_infos, max_conns, client.sin_port);
+
+				if(conn_number < 0) {
+					printf("received ack for unregistered connection\n");
+					continue;
+				}
+
+				current_conn = &clientconn_infos[conn_number];
+
+				ackpacket_t ack_packet;
+				read_ack_packet(&ack_packet, buffer);
+
+				printf("ack #%d on port %d\n", ack_packet.block_number, client.sin_port);
+
+				if(current_conn->block_number != ack_packet.block_number + 1) {
+					current_conn->block_number--;
+				}
+
+				if(current_conn->complete == 0) {
+					send_data_packet_to_client(sockfd, current_conn, (struct sockaddr*) &client, client_len);
+				}
+
 				break;
 
 		}
