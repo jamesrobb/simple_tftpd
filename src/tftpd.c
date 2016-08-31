@@ -20,13 +20,17 @@ typedef struct _clientconn_ {
 	uint16_t block_number;
 	unsigned short port_number;
 	uint8_t available;
-} clientconn_t;
+	uint8_t complete;
+	uint8_t retry_last_data;
+	uint8_t last_num_bytes_read;
+	char last_data_packet[DATA_SIZE + 4];
+} clientconninfo_t;
 
-int find_client_conn(clientconn_t* client_conns, uint8_t client_conns_len, unsigned short client_port_number) {
+int find_clientconn_info(clientconninfo_t* clientconn_infos, uint8_t clientconn_infos_len, unsigned short client_port_number) {
 
-	for(uint8_t i = 0; i < client_conns_len; i++) {
+	for(uint8_t i = 0; i < clientconn_infos_len; i++) {
 
-		if(client_conns[i].port_number == client_port_number) {
+		if(clientconn_infos[i].port_number == client_port_number) {
 			return i;
 		}
 
@@ -35,11 +39,11 @@ int find_client_conn(clientconn_t* client_conns, uint8_t client_conns_len, unsig
 	return -1;
 }
 
-int find_free_client_conn(clientconn_t* client_conns, uint8_t client_conns_len) {
+int find_free_clientconn_info(clientconninfo_t* clientconn_infos, uint8_t clientconn_infos_len) {
 
-	for(uint8_t i = 0; i < client_conns_len; i++) {
+	for(uint8_t i = 0; i < clientconn_infos_len; i++) {
 
-		if(client_conns[i].available == 1) {
+		if(clientconn_infos[i].available == 1) {
 			return i;
 		}
 
@@ -48,7 +52,7 @@ int find_free_client_conn(clientconn_t* client_conns, uint8_t client_conns_len) 
 	return -1;
 }
 
-int intialize_client_conn(clientconn_t* client_conn, char buffer[], struct sockaddr_in* client) {
+int intialize_clientconn_info(clientconninfo_t* clientconn_info, char buffer[], struct sockaddr_in* client) {
 
 	rqpacket_t req_packet;
 	read_request_packet(&req_packet, buffer);
@@ -61,44 +65,105 @@ int intialize_client_conn(clientconn_t* client_conn, char buffer[], struct socka
 	strcpy(file_location, "../data/");
 	strcat(file_location, req_packet.filename);
 
-	strcpy(client_conn->mode, req_packet.mode);
+	strcpy(clientconn_info->mode, req_packet.mode);
 
-	if(strcmp(client_conn->mode, "netascii")) {
-		client_conn->fp = fopen(file_location, "r");
+	if(strcmp(clientconn_info->mode, "netascii")) {
+		clientconn_info->fp = fopen(file_location, "r");
 	} else {
-		client_conn->fp = fopen(file_location, "r+b");
+		clientconn_info->fp = fopen(file_location, "r+b");
 	}
 
-	client_conn->port_number = client->sin_port;
+	clientconn_info->port_number = client->sin_port;
 
-	printf("new connection (file, mode, port): %s, %s, %d\n", file_location, client_conn->mode, client_conn->port_number);
+	printf("new connection (file, mode, port): %s, %s, %d\n", file_location, clientconn_info->mode, clientconn_info->port_number);
 
-	if(client_conn->fp == NULL) {
+	if(clientconn_info->fp == NULL) {
 		// could not open file
 		perror("connection failed (file not found)");
 
 		return FILE_NOT_FOUND;
 	}
 
-	client_conn->available = 0;
+	clientconn_info->available = 0;
 
 	return 0;
+}
+
+int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, struct sockaddr* client, int client_len) {
+
+
+	char send_buffer[DATA_SIZE + 4];
+	int num_bytes_read = -1;
+
+	memset(&send_buffer, 0, sizeof(send_buffer));
+
+	if(!clientconn_info->retry_last_data) {
+
+		char file_buffer[DATA_SIZE];
+
+		memset(&file_buffer, 0, sizeof(file_buffer));
+
+		if(strcmp(clientconn_info->mode, "octet") == 0) {
+			num_bytes_read = fread(file_buffer, (size_t) sizeof(unsigned char), DATA_SIZE, clientconn_info->fp);
+			clientconn_info->last_num_bytes_read = num_bytes_read;
+		}
+
+		send_buffer[1] = OPCODE_DATA;
+		send_buffer[2] = (clientconn_info->block_number >> 8) & 0xFF;
+		send_buffer[3] = clientconn_info->block_number & 0xFF;
+		clientconn_info->last_data_packet[0] = 0;
+		clientconn_info->last_data_packet[1] = send_buffer[1];
+		clientconn_info->last_data_packet[2] = send_buffer[2];
+		clientconn_info->last_data_packet[3] = send_buffer[3];
+
+		for(int i = 4; i < num_bytes_read+4; i++) {
+			//printf("f: %d\n", send_buffer[i]);
+			send_buffer[i] = file_buffer[i-4];
+			clientconn_info->last_data_packet[i] = file_buffer[i-4];
+		}
+
+	} else {
+
+		num_bytes_read = clientconn_info->last_num_bytes_read;
+
+		for(int i = 0; i < num_bytes_read; i++) {
+			send_buffer[i] = clientconn_info->last_data_packet[i];
+		}
+
+	}
+
+	printf("sending block numbers %d %d to port %d\n", send_buffer[2], send_buffer[3], clientconn_info->port_number);
+
+	int bytes_sent = sendto(sockfd, send_buffer, 4 + num_bytes_read, 0, client, client_len);
+
+	printf("bytes_sent %d to %d\n", bytes_sent, clientconn_info->port_number);
+
+	if(bytes_sent == -1) {
+		clientconn_info->retry_last_data = 1;
+	} else {
+		clientconn_info->block_number++;
+	}
+
+	return bytes_sent;
 }
 
 int main(int argc, char *argv[]) {
 
 	uint8_t max_conns = 10;
 
-	clientconn_t client_conns[max_conns];
+	clientconninfo_t clientconn_infos[max_conns];
 
 	for(uint8_t i = 0; i < 10; i++) {
-		clientconn_t new_conn_struct;
-		strcpy(new_conn_struct.mode, "");
-		new_conn_struct.block_number = 0;
-		new_conn_struct.port_number = 0;
-		new_conn_struct.available = 1;
+		clientconninfo_t new_conninfo;
+		strcpy(new_conninfo.mode, "");
+		new_conninfo.block_number = 1;
+		new_conninfo.port_number = 0;
+		new_conninfo.available = 1;
+		new_conninfo.complete = 0;
+		new_conninfo.retry_last_data = 0;
+		new_conninfo.last_num_bytes_read = 0;
 
-		client_conns[i] = new_conn_struct;
+		clientconn_infos[i] = new_conninfo;
 	}
 
 	// variable declerations
@@ -145,9 +210,9 @@ int main(int argc, char *argv[]) {
 		int num_bytes_received;
 		int no_free_connections = 0;
 		int opcode_recv = -1;
-		clientconn_t* current_conn;
+		clientconninfo_t* current_conn;
 		char buffer[PACKET_SIZE];
-		socklen_t len = (socklen_t) sizeof(client);
+		socklen_t client_len = (socklen_t) sizeof(client);
 		rqpacket_t req_header;
 
 		int free_conn_number = -1;
@@ -155,7 +220,7 @@ int main(int argc, char *argv[]) {
 
 		memset(&buffer, 0, sizeof(buffer));
 
-		num_bytes_received = recvfrom(sockfd, buffer, PACKET_SIZE, 0, (struct sockaddr*) &client, &len);
+		num_bytes_received = recvfrom(sockfd, buffer, PACKET_SIZE, 0, (struct sockaddr*) &client, &client_len);
 		if(num_bytes_received == -1) {
 			perror("recvfrom error");
 			continue;
@@ -168,7 +233,7 @@ int main(int argc, char *argv[]) {
 
 			case OPCODE_READ:
 
-				free_conn_number = find_free_client_conn(client_conns, max_conns);
+				free_conn_number = find_free_clientconn_info(clientconn_infos, max_conns);
 
 				if(free_conn_number < 0) {
 					// could not find any free connections to use
@@ -179,13 +244,15 @@ int main(int argc, char *argv[]) {
 				}
 
 				conn_number = free_conn_number;
-				current_conn = &client_conns[free_conn_number];
-				intialize_client_conn(current_conn, buffer, &client);
+				current_conn = &clientconn_infos[free_conn_number];
+				intialize_clientconn_info(current_conn, buffer, &client);
+				//send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, struct sockaddr* client, int client_len)
+				send_data_packet_to_client(sockfd, current_conn, (struct sockaddr*) &client, client_len);
 
 				break;
 
 			case OPCODE_ACK:
-				// something
+				//
 				break;
 
 		}
@@ -269,12 +336,12 @@ int main(int argc, char *argv[]) {
 
 				printf("send_buffer end\n");
 
-				int num_bytes_sent = sendto(sockfd, send_buffer, 4 + num_bytes_read, 0, (struct sockaddr*) &client, len);
+				int num_bytes_sent = sendto(sockfd, send_buffer, 4 + num_bytes_read, 0, (struct sockaddr*) &client, client_len);
 
 				while(1) {
 
 					memset(&buffer, 0, sizeof(buffer));
-					num_bytes_received = recvfrom(sockfd, buffer, PACKET_SIZE, 0, (struct sockaddr*) &client, &len);
+					num_bytes_received = recvfrom(sockfd, buffer, PACKET_SIZE, 0, (struct sockaddr*) &client, &client_len);
 
 					if(num_bytes_received == -1) {
 						perror("error when receiving ack for transmission end");
