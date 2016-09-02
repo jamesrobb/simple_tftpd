@@ -107,6 +107,29 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 			num_bytes_read = fread(file_buffer, (size_t) sizeof(unsigned char), DATA_SIZE, clientconn_info->fp);
 			clientconn_info->last_num_bytes_read = num_bytes_read;
 		}
+		else{
+			printf("do I go here?\n");
+			int _bytes_read = 0;
+			char _tmp_char;
+			for(int i = 0; i < DATA_SIZE; i++){
+				_tmp_char = fgetc(clientconn_info->fp);
+				if(feof(clientconn_info->fp)){
+					break;
+				}
+
+				num_bytes_received += 1;
+				if(_tmp_char == 10){
+					file_buffer[i] = 13;
+					file_buffer[i+1] = 10;
+					i++;
+					num_bytes_received += 1;
+				} 
+				else{
+					file_buffer[i] = _tmp_char;
+				}
+				
+			}
+		}
 
 		send_buffer[1] = OPCODE_DATA;
 		send_buffer[2] = (clientconn_info->block_number >> 8) & 0xFF;
