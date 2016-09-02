@@ -14,7 +14,7 @@
 
 #define FILE_NOT_FOUND	1
 
-char file_serve_directory[MAX_FILENAME_LENGTH];
+char file_serve_directory[MAX_FILENAME_LENGTH*2];
 
 typedef struct _clientconn_ {
 	FILE* fp;
@@ -54,17 +54,17 @@ int find_free_clientconn_info(clientconninfo_t* clientconn_infos, uint8_t client
 	return -1;
 }
 
-int intialize_clientconn_info(clientconninfo_t* clientconn_info, char buffer[], struct sockaddr_in* client) {
+int intialize_clientconn_info(clientconninfo_t* clientconn_info, char file_directory[], char buffer[], struct sockaddr_in* client) {
 
 	rqpacket_t req_packet;
 	read_request_packet(&req_packet, buffer);
 
 	//printf("reqpacketfile: %d\n", req_packet.filename[4]);
 
-	char file_location[20];
+	char file_location[MAX_FILENAME_LENGTH];
 	memset(&file_location, 0, 19);
 
-	strcpy(file_location, "../data/");
+	strncpy(file_location, file_directory, strlen(file_directory));
 	strcat(file_location, req_packet.filename);
 
 	strcpy(clientconn_info->mode, req_packet.mode);
@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_in server, client;
 
 	// setting up the directory where our files will be served from
-	memset(&file_serve_directory, 0, DATA_SIZE);
+	memset(&file_serve_directory, 0, MAX_FILENAME_LENGTH);
 	int passed_serve_directory_size = strlen(argv[2]);
 
 	if(passed_serve_directory_size > MAX_FILENAME_LENGTH - 1) {
@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	strcpy(file_serve_directory, argv[2]);
-	printf("data directory is: %s", file_serve_directory);
+	printf("data directory is: %s\n", file_serve_directory);
 
 	// the server only takes on argument, the port
 	port = atoi(argv[1]);
@@ -270,7 +270,7 @@ int main(int argc, char *argv[]) {
 
 				conn_number = free_conn_number;
 				current_conn = &clientconn_infos[free_conn_number];
-				intialize_clientconn_info(current_conn, buffer, &client);
+				intialize_clientconn_info(current_conn, file_serve_directory, buffer, &client);
 				//send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, struct sockaddr* client, int client_len)
 				send_data_packet_to_client(sockfd, current_conn, (struct sockaddr*) &client, client_len);
 
