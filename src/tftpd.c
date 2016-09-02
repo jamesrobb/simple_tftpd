@@ -75,6 +75,8 @@ int intialize_clientconn_info(clientconninfo_t* clientconn_info, char file_direc
 		clientconn_info->fp = fopen(file_location, "r+b");
 	}
 
+
+
 	clientconn_info->port_number = client->sin_port;
 
 	printf("new connection (file, mode, port): %s, %s, %d\n", file_location, clientconn_info->mode, clientconn_info->port_number);
@@ -89,6 +91,17 @@ int intialize_clientconn_info(clientconninfo_t* clientconn_info, char file_direc
 	clientconn_info->available = 0;
 
 	return 0;
+}
+
+void send_error_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, int error_code, struct sockaddr* client, int client_len){
+	char error_buffer[10];
+	error_buffer[0] = 0;
+	error_buffer[1] = 5;
+	error_buffer[2] = 0;
+	error_buffer[3] = error_code;
+	strcat(error_buffer, "ERROR");
+	error_buffer[9] = '\0';
+	sendto(sockfd, error_buffer, 10, 0, client, client_len);
 }
 
 int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, struct sockaddr* client, int client_len) {
@@ -304,6 +317,12 @@ int main(int argc, char *argv[]) {
 				conn_number = free_conn_number;
 				current_conn = &clientconn_infos[free_conn_number];
 				intialize_clientconn_info(current_conn, file_serve_directory, buffer, &client);
+				if(current_conn->fp == NULL){
+					current_conn->complete = 1;
+					send_error_packet_to_client(sockfd, current_conn, 1, (struct sockaddr*) &client, client_len);
+					break;
+				}
+
 				//send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, struct sockaddr* client, int client_len)
 				send_data_packet_to_client(sockfd, current_conn, (struct sockaddr*) &client, client_len);
 
