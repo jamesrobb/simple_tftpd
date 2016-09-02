@@ -184,3 +184,17 @@ void reset_clientconn_info(clientconninfo_t* clientconn_info) {
 
 	return;
 }
+
+void send_error_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, int error_code, struct sockaddr* client, int client_len) {
+    char error_buffer[10];
+
+    error_buffer[0] = 0;
+    error_buffer[1] = 5;
+    error_buffer[2] = 0;
+    error_buffer[3] = error_code;
+    strcat(error_buffer, "ERROR");
+    error_buffer[9] = '\0';
+    sendto(sockfd, error_buffer, 10, 0, client, client_len);
+
+    return;
+}

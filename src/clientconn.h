@@ -25,6 +25,8 @@ typedef struct _clientconn_ {
 	char last_data_packet[DATA_SIZE + 4];
 } clientconninfo_t;
 
+char file_serve_directory[MAX_FILENAME_LENGTH*2];
+
 void clear_complete_clientconn_infos(clientconninfo_t* clientconn_infos, uint8_t clientconn_infos_len);
 
 int find_clientconn_info(clientconninfo_t* clientconn_infos, uint8_t clientconn_infos_len, unsigned short client_port_number);
@@ -36,5 +38,7 @@ int intialize_clientconn_info(clientconninfo_t* clientconn_info, char file_direc
 int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, struct sockaddr* client, int client_len);
 
 void reset_clientconn_info(clientconninfo_t* clientconn_info);
+
+void send_error_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, int error_code, struct sockaddr* client, int client_len);
 
 #endif
