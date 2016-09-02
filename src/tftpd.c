@@ -14,6 +14,8 @@
 
 #define FILE_NOT_FOUND	1
 
+char file_serve_directory[MAX_FILENAME_LENGTH];
+
 typedef struct _clientconn_ {
 	FILE* fp;
 	char mode[10];
@@ -152,23 +154,26 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 	return bytes_sent;
 }
 
+void reset_clientconn_info(clientconninfo_t* conninfo) {
+
+	strcpy(conninfo->mode, "");
+	conninfo->block_number = 1;
+	conninfo->port_number = 0;
+	conninfo->available = 1;
+	conninfo->complete = 0;
+	conninfo->retry_last_data = 0;
+	conninfo->last_num_bytes_read = 0;
+
+	return;
+}
+
 int main(int argc, char *argv[]) {
 
 	uint8_t max_conns = 10;
 
-	clientconninfo_t clientconn_infos[max_conns];
-
-	for(uint8_t i = 0; i < 10; i++) {
-		clientconninfo_t new_conninfo;
-		strcpy(new_conninfo.mode, "");
-		new_conninfo.block_number = 1;
-		new_conninfo.port_number = 0;
-		new_conninfo.available = 1;
-		new_conninfo.complete = 0;
-		new_conninfo.retry_last_data = 0;
-		new_conninfo.last_num_bytes_read = 0;
-
-		clientconn_infos[i] = new_conninfo;
+	if(argc != 3) {
+		print_usage();
+		exit(1);
 	}
 
 	// variable declerations
@@ -176,13 +181,28 @@ int main(int argc, char *argv[]) {
 	int port;
 	struct sockaddr_in server, client;
 
-	// the server only takes on argument, the port
-	if(argc != 2) {
-		print_usage();
-		exit(1);
+	// setting up the directory where our files will be served from
+	memset(&file_serve_directory, 0, DATA_SIZE);
+	int passed_serve_directory_size = strlen(argv[2]);
+
+	if(passed_serve_directory_size > MAX_FILENAME_LENGTH - 1) {
+		printf("directory path is too large\n");
+		return -1;
 	}
 
+	strcpy(file_serve_directory, argv[2]);
+	printf("data directory is: %s", file_serve_directory);
+
+	// the server only takes on argument, the port
 	port = atoi(argv[1]);
+
+	clientconninfo_t clientconn_infos[max_conns];
+
+	for(uint8_t i = 0; i < 10; i++) {
+		clientconninfo_t new_conninfo;
+		reset_clientconn_info(&new_conninfo);
+		clientconn_infos[i] = new_conninfo;
+	}
 
 	// create and bind a udp socket
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
