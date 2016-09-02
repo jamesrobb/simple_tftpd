@@ -20,7 +20,7 @@ int find_string_terminator(char* buffer, int buffer_len, int start) {
 
 void print_usage() {
 
-	printf("usage: tftpd [-p port_number]\n");
+	printf("usage: tftpd [port_number] [data_directory]\n");
 
 	return;
 }

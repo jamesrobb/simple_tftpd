@@ -14,6 +14,8 @@
 
 #define FILE_NOT_FOUND	1
 
+char file_serve_directory[MAX_FILENAME_LENGTH*2];
+
 typedef struct _clientconn_ {
 	FILE* fp;
 	char mode[10];
@@ -52,17 +54,17 @@ int find_free_clientconn_info(clientconninfo_t* clientconn_infos, uint8_t client
 	return -1;
 }
 
-int intialize_clientconn_info(clientconninfo_t* clientconn_info, char buffer[], struct sockaddr_in* client) {
+int intialize_clientconn_info(clientconninfo_t* clientconn_info, char file_directory[], char buffer[], struct sockaddr_in* client) {
 
 	rqpacket_t req_packet;
 	read_request_packet(&req_packet, buffer);
 
 	//printf("reqpacketfile: %d\n", req_packet.filename[4]);
 
-	char file_location[20];
+	char file_location[MAX_FILENAME_LENGTH];
 	memset(&file_location, 0, 19);
 
-	strcpy(file_location, "../data/");
+	strncpy(file_location, file_directory, strlen(file_directory));
 	strcat(file_location, req_packet.filename);
 
 	strcpy(clientconn_info->mode, req_packet.mode);
@@ -131,6 +133,10 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 			}
 		}
 
+		if(num_bytes_read < DATA_SIZE) {
+			clientconn_info->complete = 1;
+		}
+
 		send_buffer[1] = OPCODE_DATA;
 		send_buffer[2] = (clientconn_info->block_number >> 8) & 0xFF;
 		send_buffer[3] = clientconn_info->block_number & 0xFF;
@@ -155,13 +161,14 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 
 	}
 
-	printf("sending block numbers %d %d to port %d\n", send_buffer[2], send_buffer[3], clientconn_info->port_number);
+	printf("sending block numbers %d %d %d to port %d\n", clientconn_info->block_number, send_buffer[2], send_buffer[3], clientconn_info->port_number);
 
 	int bytes_sent = sendto(sockfd, send_buffer, 4 + num_bytes_read, 0, client, client_len);
 
 	printf("bytes_sent %d to %d\n", bytes_sent, clientconn_info->port_number);
 
 	if(bytes_sent == -1) {
+		clientconn_info->complete = 0;
 		clientconn_info->retry_last_data = 1;
 	} else {
 		clientconn_info->block_number++;
@@ -170,23 +177,26 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 	return bytes_sent;
 }
 
+void reset_clientconn_info(clientconninfo_t* conninfo) {
+
+	strcpy(conninfo->mode, "");
+	conninfo->block_number = 1;
+	conninfo->port_number = 0;
+	conninfo->available = 1;
+	conninfo->complete = 0;
+	conninfo->retry_last_data = 0;
+	conninfo->last_num_bytes_read = 0;
+
+	return;
+}
+
 int main(int argc, char *argv[]) {
 
 	uint8_t max_conns = 10;
 
-	clientconninfo_t clientconn_infos[max_conns];
-
-	for(uint8_t i = 0; i < 10; i++) {
-		clientconninfo_t new_conninfo;
-		strcpy(new_conninfo.mode, "");
-		new_conninfo.block_number = 1;
-		new_conninfo.port_number = 0;
-		new_conninfo.available = 1;
-		new_conninfo.complete = 0;
-		new_conninfo.retry_last_data = 0;
-		new_conninfo.last_num_bytes_read = 0;
-
-		clientconn_infos[i] = new_conninfo;
+	if(argc != 3) {
+		print_usage();
+		exit(1);
 	}
 
 	// variable declerations
@@ -194,13 +204,28 @@ int main(int argc, char *argv[]) {
 	int port;
 	struct sockaddr_in server, client;
 
-	// the server only takes on argument, the port
-	if(argc != 2) {
-		print_usage();
-		exit(1);
+	// setting up the directory where our files will be served from
+	memset(&file_serve_directory, 0, MAX_FILENAME_LENGTH);
+	int passed_serve_directory_size = strlen(argv[2]);
+
+	if(passed_serve_directory_size > MAX_FILENAME_LENGTH - 1) {
+		printf("directory path is too large\n");
+		return -1;
 	}
 
+	strcpy(file_serve_directory, argv[2]);
+	printf("data directory is: %s\n", file_serve_directory);
+
+	// the server only takes on argument, the port
 	port = atoi(argv[1]);
+
+	clientconninfo_t clientconn_infos[max_conns];
+
+	for(uint8_t i = 0; i < 10; i++) {
+		clientconninfo_t new_conninfo;
+		reset_clientconn_info(&new_conninfo);
+		clientconn_infos[i] = new_conninfo;
+	}
 
 	// create and bind a udp socket
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -268,14 +293,36 @@ int main(int argc, char *argv[]) {
 
 				conn_number = free_conn_number;
 				current_conn = &clientconn_infos[free_conn_number];
-				intialize_clientconn_info(current_conn, buffer, &client);
+				intialize_clientconn_info(current_conn, file_serve_directory, buffer, &client);
 				//send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, struct sockaddr* client, int client_len)
 				send_data_packet_to_client(sockfd, current_conn, (struct sockaddr*) &client, client_len);
 
 				break;
 
 			case OPCODE_ACK:
-				//
+
+				conn_number = find_clientconn_info(clientconn_infos, max_conns, client.sin_port);
+
+				if(conn_number < 0) {
+					printf("received ack for unregistered connection\n");
+					continue;
+				}
+
+				current_conn = &clientconn_infos[conn_number];
+
+				ackpacket_t ack_packet;
+				read_ack_packet(&ack_packet, buffer);
+
+				printf("ack #%d on port %d\n", ack_packet.block_number, client.sin_port);
+
+				if(current_conn->block_number != ack_packet.block_number + 1) {
+					current_conn->block_number--;
+				}
+
+				if(current_conn->complete == 0) {
+					send_data_packet_to_client(sockfd, current_conn, (struct sockaddr*) &client, client_len);
+				}
+
 				break;
 
 		}
