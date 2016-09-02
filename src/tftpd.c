@@ -111,25 +111,35 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 		}
 		else{
 			printf("do I go here?\n");
+
+			num_bytes_read = 0; // we no longer use -1 to catch an error, we handle it differently here
 			int _bytes_read = 0;
 			char _tmp_char;
+
 			for(int i = 0; i < DATA_SIZE; i++){
+
 				_tmp_char = fgetc(clientconn_info->fp);
 				if(feof(clientconn_info->fp)){
 					break;
 				}
 
-				num_bytes_received += 1;
+				num_bytes_read += 1;
 				if(_tmp_char == 10){
 					file_buffer[i] = 13;
 					file_buffer[i+1] = 10;
 					i++;
-					num_bytes_received += 1;
-				} 
+					num_bytes_read += 1;
+				}
+				else if(_tmp_char == 13) {
+					file_buffer[i] = 13;
+					file_buffer[i+1] = 0;
+					i++;
+					num_bytes_read += 1;
+				}
 				else{
 					file_buffer[i] = _tmp_char;
 				}
-				
+
 			}
 		}
 
