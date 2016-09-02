@@ -11,8 +11,8 @@ LDLIBS =
 .PHONY: all
 all: tftpd
 
-tftpd: tftpd.o packet.o util.o
-	$(mCC) tftpd.o packet.o util.o -o tftpd
+tftpd: tftpd.o packet.o util.o clientconn.o
+	$(mCC) tftpd.o packet.o util.o clientconn.o -o tftpd
 
 tftpd.o: tftpd.c
 	$(mCC) $(OBJFLAGS) $(CFLAGS) tftpd.c
@@ -22,6 +22,9 @@ packet.o: packet.c
 
 util.o: util.c
 	$(mCC) $(OBJFLAGS) $(CFLAGS) util.c
+
+clientconn.o: clientconn.c
+	$(mCC) $(OBJFLAGS) $(CFLAGS) clientconn.c
 
 clean:
 	rm -f *.o
