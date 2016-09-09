@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	// variable declerations
-	int sockfd, connfd;
+	int sockfd;
 	int port;
 	struct sockaddr_in server, client;
 
@@ -73,24 +73,25 @@ int main(int argc, char *argv[]) {
 	// start listening and set a backlog of 1
 	//listen(sockfd, 1);
 
-	int req_established = 0;
+	//int req_established = 0;
 
 	while(1) {
 
 		clientconninfo_t* current_conn;
-		clientconninfo_t conninfo_error;
+		//clientconninfo_t conninfo_error;
 		socklen_t client_len = (socklen_t) sizeof(client);
-		rqpacket_t req_header;
+		//rqpacket_t req_header;
 		int free_conn_number = -1;
 		int conn_number = -1;
 		int num_bytes_received;
 		int no_free_connections = 0;
 		int opcode_recv = -1;
+		int initialization_result = -1;
 		char buffer[PACKET_SIZE];
 
 		// we have this conninfo_error as just a place holder for error situations in where we don't
 		// have any real info, or dont care about the info, of a bad request/situation
-		reset_clientconn_info(&conninfo_error);
+		//reset_clientconn_info(&conninfo_error);
 
 		// any transfers that have finished get cleaned up
 		clear_complete_clientconn_infos(clientconn_infos, max_conns);
@@ -122,10 +123,17 @@ int main(int argc, char *argv[]) {
 
 				conn_number = free_conn_number;
 				current_conn = &clientconn_infos[free_conn_number];
-				intialize_clientconn_info(current_conn, file_serve_directory, buffer, &client);
-				if(current_conn->fp == NULL){
+				initialization_result = intialize_clientconn_info(current_conn, file_serve_directory, buffer, &client);
+
+				if(initialization_result == FILE_NOT_FOUND){
 					current_conn->complete = 1;
-					send_error_packet_to_client(sockfd, current_conn, TFTP_ERROR_FILE_NOT_FOUND, "FILE NOT FOUND", (struct sockaddr*) &client, client_len);
+					send_error_packet_to_client(sockfd, TFTP_ERROR_FILE_NOT_FOUND, "FILE NOT FOUND", (struct sockaddr*) &client, client_len);
+					break;
+				}
+
+				if(initialization_result == FILE_ACCESS_VIOLATION){
+					current_conn->complete = 1;
+					send_error_packet_to_client(sockfd, TFTP_ERROR_FILE_ACCESS_VILOATION, "FILE ACCESS VIOLATION", (struct sockaddr*) &client, client_len);
 					break;
 				}
 
@@ -151,7 +159,15 @@ int main(int argc, char *argv[]) {
 				printf("ack #%d on port %d\n", ack_packet.block_number, client.sin_port);
 
 				if(current_conn->block_number != ack_packet.block_number + 1) {
-					current_conn->block_number--;
+					//current_conn->block_number--;
+					current_conn->retry_last_data = 1;
+				} else {
+
+					if(current_conn->sent_last_packet == 1) {
+						current_conn->complete = 1;
+						printf("final ack on port %d\n", client.sin_port);
+					}
+
 				}
 
 				if(current_conn->complete == 0) {
@@ -162,9 +178,13 @@ int main(int argc, char *argv[]) {
 
 			case OPCODE_WRITE:
 
-				send_error_packet_to_client(sockfd, &conninfo_error, TFTP_ERROR_ACCESS_ILLEGAL_OP, "WRITE NOT PERMITTED", (struct sockaddr*) &client, client_len);
+				send_error_packet_to_client(sockfd, TFTP_ERROR_ACCESS_ILLEGAL_OP, "WRITE NOT PERMITTED", (struct sockaddr*) &client, client_len);
 				break;
 
+		}
+
+		if(no_free_connections) {
+			send_error_packet_to_client(sockfd, TFTP_ERROR_OTHER, "NO FREE CONNECTIONS", (struct sockaddr*) &client, client_len);
 		}
 
 	}

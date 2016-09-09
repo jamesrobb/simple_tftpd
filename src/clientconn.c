@@ -45,6 +45,10 @@ int intialize_clientconn_info(clientconninfo_t* clientconn_info, char file_direc
 	rqpacket_t req_packet;
 	read_request_packet(&req_packet, buffer);
 
+    if(strstr(req_packet.filename, "..")) {
+        return FILE_ACCESS_VIOLATION;
+    }
+
 	//printf("reqpacketfile: %d\n", req_packet.filename[4]);
 
 	char file_location[MAX_FILENAME_LENGTH];
@@ -93,45 +97,13 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 
 		memset(&file_buffer, 0, sizeof(file_buffer));
 
-		if(strcmp(clientconn_info->mode, "octet") == 0) {
-			num_bytes_read = fread(file_buffer, (size_t) sizeof(unsigned char), DATA_SIZE, clientconn_info->fp);
-			clientconn_info->last_num_bytes_read = num_bytes_read;
-		}
-		else{
-
-			num_bytes_read = 0; // we no longer use -1 to catch an error, we handle it differently here
-			int _bytes_read = 0;
-			char _tmp_char;
-
-			for(int i = 0; i < DATA_SIZE; i++){
-
-				_tmp_char = fgetc(clientconn_info->fp);
-				if(feof(clientconn_info->fp)){
-					break;
-				}
-
-				num_bytes_read += 1;
-				if(_tmp_char == 10){
-					file_buffer[i] = 13;
-					file_buffer[i+1] = 10;
-					i++;
-					num_bytes_read += 1;
-				}
-				else if(_tmp_char == 13) {
-					file_buffer[i] = 13;
-					file_buffer[i+1] = 0;
-					i++;
-					num_bytes_read += 1;
-				}
-				else{
-					file_buffer[i] = _tmp_char;
-				}
-
-			}
-		}
+        // we always want to send in binary as netascii is dumb and noone used it anymore
+		//if(strcmp(clientconn_info->mode, "octet") == 0) {
+		num_bytes_read = fread(file_buffer, (size_t) sizeof(unsigned char), DATA_SIZE, clientconn_info->fp);
+		clientconn_info->last_num_bytes_read = num_bytes_read;
 
 		if(num_bytes_read < DATA_SIZE) {
-			clientconn_info->complete = 1;
+			clientconn_info->sent_last_packet = 1;
 		}
 
 		send_buffer[1] = OPCODE_DATA;
@@ -168,7 +140,10 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 		clientconn_info->complete = 0;
 		clientconn_info->retry_last_data = 1;
 	} else {
-		clientconn_info->block_number++;
+
+        if(!clientconn_info->retry_last_data) {
+            clientconn_info->block_number++;
+        }
 	}
 
 	return bytes_sent;
