@@ -9,10 +9,12 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <stdint.h>
+#include <time.h>
 #include "packet.h"
 
 #define FILE_NOT_FOUND	1
 #define FILE_ACCESS_VIOLATION 2
+#define CONN_TIMEOUT 5;
 
 typedef struct _clientconn_ {
 	FILE* fp;
@@ -25,6 +27,7 @@ typedef struct _clientconn_ {
 	uint8_t retry_last_data;
 	uint8_t last_num_bytes_read;
 	char last_data_packet[DATA_SIZE + 4];
+	time_t last_action;
 } clientconninfo_t;
 
 // we multiply by 2 for no other reason than just because

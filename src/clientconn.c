@@ -5,7 +5,21 @@ void clear_complete_clientconn_infos(clientconninfo_t* clientconn_infos, uint8_t
 
 	for(int i = 0; i < clientconn_infos_len; i++) {
 
-		if(clientconn_infos[i].complete == 1) {
+        int conn_timed_out = 0;
+
+        if(clientconn_infos[i].available == 0) {
+
+            time_t timeout_secs = time(NULL) - clientconn_infos[i].last_action;
+            conn_timed_out = timeout_secs > CONN_TIMEOUT;
+
+            if(conn_timed_out) {
+
+                printf("connection timed out on port %d\n", clientconn_infos[i].port_number);
+            }
+
+        }
+
+		if(clientconn_infos[i].complete == 1 || conn_timed_out) {
 			reset_clientconn_info(&clientconn_infos[i]);
 		}
 
@@ -130,11 +144,14 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 
 	}
 
-	printf("sending block numbers %d %d %d to port %d\n", clientconn_info->block_number, send_buffer[2], send_buffer[3], clientconn_info->port_number);
+    // we update the last action for the client so we don't timeout
+    clientconn_info->last_action = time(NULL);
+
+	//printf("sending block numbers %d %d %d to port %d\n", clientconn_info->block_number, send_buffer[2], send_buffer[3], clientconn_info->port_number);
 
 	int bytes_sent = sendto(sockfd, send_buffer, 4 + num_bytes_read, 0, client, client_len);
 
-	printf("bytes_sent %d to %d\n", bytes_sent, clientconn_info->port_number);
+	//printf("bytes_sent %d to %d\n", bytes_sent, clientconn_info->port_number);
 
 	if(bytes_sent == -1) {
 		clientconn_info->complete = 0;
@@ -155,10 +172,11 @@ void reset_clientconn_info(clientconninfo_t* clientconn_info) {
 	clientconn_info->block_number = 1;
 	clientconn_info->port_number = 0;
 	clientconn_info->available = 1;
-    	clientconn_info->sent_last_packet = 0;
+    clientconn_info->sent_last_packet = 0;
 	clientconn_info->complete = 0;
 	clientconn_info->retry_last_data = 0;
 	clientconn_info->last_num_bytes_read = 0;
+    clientconn_info->last_action = clock();
 
 	return;
 }

@@ -41,6 +41,10 @@ int main(int argc, char *argv[]) {
 	}
 
 	strcpy(file_serve_directory, argv[2]);
+	// we make sure that there is a trailing slash on the file serve directory
+	if(file_serve_directory[strlen(file_serve_directory)-1] != '/') {
+		strcat(file_serve_directory, "/");
+	}
 	printf("data directory is: %s\n", file_serve_directory);
 
 	clientconninfo_t clientconn_infos[max_conns];
@@ -93,9 +97,6 @@ int main(int argc, char *argv[]) {
 		// have any real info, or dont care about the info, of a bad request/situation
 		//reset_clientconn_info(&conninfo_error);
 
-		// any transfers that have finished get cleaned up
-		clear_complete_clientconn_infos(clientconn_infos, max_conns);
-
 		memset(&buffer, 0, sizeof(buffer));
 
 		num_bytes_received = recvfrom(sockfd, buffer, PACKET_SIZE, 0, (struct sockaddr*) &client, &client_len);
@@ -103,6 +104,9 @@ int main(int argc, char *argv[]) {
 			perror("recvfrom error");
 			continue;
 		}
+
+		// any transfers that have finished or timed out get cleaned up
+		clear_complete_clientconn_infos(clientconn_infos, max_conns);
 
 		opcode_recv = read_opcode(buffer);
 		printf("opcode_rev: %d\n", opcode_recv);
@@ -156,7 +160,7 @@ int main(int argc, char *argv[]) {
 				ackpacket_t ack_packet;
 				read_ack_packet(&ack_packet, buffer);
 
-				printf("ack #%d on port %d\n", ack_packet.block_number, client.sin_port);
+				//printf("ack #%d on port %d\n", ack_packet.block_number, client.sin_port);
 
 				if(current_conn->block_number != ack_packet.block_number + 1) {
 					//current_conn->block_number--;
