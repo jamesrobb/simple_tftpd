@@ -1,4 +1,4 @@
-#include "clientconn.h"
+ #include "clientconn.h"
 
 
 void clear_complete_clientconn_infos(clientconninfo_t* clientconn_infos, uint8_t clientconn_infos_len) {
@@ -55,11 +55,13 @@ int intialize_clientconn_info(clientconninfo_t* clientconn_info, char file_direc
 
 	strcpy(clientconn_info->mode, req_packet.mode);
 
-	if(strcmp(clientconn_info->mode, "netascii")) {
-		clientconn_info->fp = fopen(file_location, "r");
-	} else {
-		clientconn_info->fp = fopen(file_location, "r+b");
-	}
+	// if(strcmp(clientconn_info->mode, "netascii")) {
+	// 	clientconn_info->fp = fopen(file_location, "r");
+	// } else {
+	// 	clientconn_info->fp = fopen(file_location, "rb");
+	// }
+    // the above code is no longer needed, we also transfer in binary
+    clientconn_info->fp = fopen(file_location, "rb");
 
 	clientconn_info->port_number = client->sin_port;
 
@@ -185,16 +187,21 @@ void reset_clientconn_info(clientconninfo_t* clientconn_info) {
 	return;
 }
 
-void send_error_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, int error_code, struct sockaddr* client, int client_len) {
-    char error_buffer[10];
+void send_error_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, int error_code, const char * error_message, struct sockaddr* client, int client_len) {
+
+    int error_message_len = strlen(error_message);
+    char error_buffer[error_message_len + 5]; // length of string plus terminator plus tftp header info
 
     error_buffer[0] = 0;
     error_buffer[1] = 5;
     error_buffer[2] = 0;
     error_buffer[3] = error_code;
-    strcat(error_buffer, "ERROR");
-    error_buffer[9] = '\0';
-    sendto(sockfd, error_buffer, 10, 0, client, client_len);
+    // we copy the error message into the right place
+    memcpy(error_buffer + 4, error_message, error_message_len + 1);
+
+    //printf("error payload is: %s\n", error_buffer+1);
+
+    sendto(sockfd, error_buffer, error_message_len + 5, 0, client, client_len);
 
     return;
 }

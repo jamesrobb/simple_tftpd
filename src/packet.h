@@ -8,8 +8,13 @@
 #define DATA_SIZE	512
 #define DATA_HEADER 8
 #define OPCODE_READ 1
+#define OPCODE_WRITE 2
 #define OPCODE_DATA 3
 #define OPCODE_ACK  4
+
+#define TFTP_ERROR_FILE_NOT_FOUND 1
+#define TFTP_ERROR_ACCESS_ILLEGAL_OP 4
+
 #define MAX_FILENAME_LENGTH 512
 
 typedef struct _rq_packet_ {

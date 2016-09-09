@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
 
 	uint8_t max_conns = 2;
 
-	if(argc != 3) {
+	if(argc != 3 || argc > 3) {
 		print_usage();
 		exit(1);
 	}
@@ -26,6 +26,10 @@ int main(int argc, char *argv[]) {
 	int sockfd, connfd;
 	int port;
 	struct sockaddr_in server, client;
+
+	// the server only takes on argument, the port
+	port = atoi(argv[1]);
+	printf("port %d\n", port);
 
 	// setting up the directory where our files will be served from
 	memset(&file_serve_directory, 0, MAX_FILENAME_LENGTH);
@@ -39,12 +43,9 @@ int main(int argc, char *argv[]) {
 	strcpy(file_serve_directory, argv[2]);
 	printf("data directory is: %s\n", file_serve_directory);
 
-	// the server only takes on argument, the port
-	port = atoi(argv[1]);
-
 	clientconninfo_t clientconn_infos[max_conns];
 
-	for(uint8_t i = 0; i < 10; i++) {
+	for(uint8_t i = 0; i < max_conns; i++) {
 		clientconninfo_t new_clientconn_info;
 		reset_clientconn_info(&new_clientconn_info);
 		clientconn_infos[i] = new_clientconn_info;
@@ -64,8 +65,6 @@ int main(int argc, char *argv[]) {
 	server.sin_addr.s_addr = htonl(INADDR_ANY);
 	server.sin_port = htons(port);
 
-	printf("port %d\n", port);
-
 	if(bind(sockfd, (struct sockaddr*) &server, (socklen_t) sizeof(server)) < 0) {
 		perror("unable to bind socket");
 		exit(1);
@@ -78,17 +77,22 @@ int main(int argc, char *argv[]) {
 
 	while(1) {
 
+		clientconninfo_t* current_conn;
+		clientconninfo_t conninfo_error;
+		socklen_t client_len = (socklen_t) sizeof(client);
+		rqpacket_t req_header;
+		int free_conn_number = -1;
+		int conn_number = -1;
 		int num_bytes_received;
 		int no_free_connections = 0;
 		int opcode_recv = -1;
-		clientconninfo_t* current_conn;
 		char buffer[PACKET_SIZE];
-		socklen_t client_len = (socklen_t) sizeof(client);
-		rqpacket_t req_header;
 
-		int free_conn_number = -1;
-		int conn_number = -1;
+		// we have this conninfo_error as just a place holder for error situations in where we don't
+		// have any real info, or dont care about the info, of a bad request/situation
+		reset_clientconn_info(&conninfo_error);
 
+		// any transfers that have finished get cleaned up
 		clear_complete_clientconn_infos(clientconn_infos, max_conns);
 
 		memset(&buffer, 0, sizeof(buffer));
@@ -121,7 +125,7 @@ int main(int argc, char *argv[]) {
 				intialize_clientconn_info(current_conn, file_serve_directory, buffer, &client);
 				if(current_conn->fp == NULL){
 					current_conn->complete = 1;
-					send_error_packet_to_client(sockfd, current_conn, 1, (struct sockaddr*) &client, client_len);
+					send_error_packet_to_client(sockfd, current_conn, TFTP_ERROR_FILE_NOT_FOUND, "FILE NOT FOUND", (struct sockaddr*) &client, client_len);
 					break;
 				}
 
@@ -154,6 +158,11 @@ int main(int argc, char *argv[]) {
 					send_data_packet_to_client(sockfd, current_conn, (struct sockaddr*) &client, client_len);
 				}
 
+				break;
+
+			case OPCODE_WRITE:
+
+				send_error_packet_to_client(sockfd, &conninfo_error, TFTP_ERROR_ACCESS_ILLEGAL_OP, "WRITE NOT PERMITTED", (struct sockaddr*) &client, client_len);
 				break;
 
 		}

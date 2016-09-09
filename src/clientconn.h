@@ -25,6 +25,7 @@ typedef struct _clientconn_ {
 	char last_data_packet[DATA_SIZE + 4];
 } clientconninfo_t;
 
+// we multiply by 2 for no other reason than just because
 char file_serve_directory[MAX_FILENAME_LENGTH*2];
 
 void clear_complete_clientconn_infos(clientconninfo_t* clientconn_infos, uint8_t clientconn_infos_len);
@@ -39,6 +40,6 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 
 void reset_clientconn_info(clientconninfo_t* clientconn_info);
 
-void send_error_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, int error_code, struct sockaddr* client, int client_len);
+void send_error_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, int error_code, const char* error_message, struct sockaddr* client, int client_len);
 
 #endif
