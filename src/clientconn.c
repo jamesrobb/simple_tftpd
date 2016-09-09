@@ -97,6 +97,21 @@ int intialize_clientconn_info(clientconninfo_t* clientconn_info, char file_direc
 	return 0;
 }
 
+void reset_clientconn_info(clientconninfo_t* clientconn_info) {
+
+	strcpy(clientconn_info->mode, "");
+	clientconn_info->block_number = 1;
+	clientconn_info->port_number = 0;
+	clientconn_info->available = 1;
+    clientconn_info->sent_last_packet = 0;
+	clientconn_info->complete = 0;
+	clientconn_info->retry_last_data = 0;
+	clientconn_info->last_num_bytes_read = 0;
+    clientconn_info->last_action = clock();
+
+	return;
+}
+
 int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, struct sockaddr* client, int client_len) {
 
 
@@ -164,21 +179,6 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 	}
 
 	return bytes_sent;
-}
-
-void reset_clientconn_info(clientconninfo_t* clientconn_info) {
-
-	strcpy(clientconn_info->mode, "");
-	clientconn_info->block_number = 1;
-	clientconn_info->port_number = 0;
-	clientconn_info->available = 1;
-    clientconn_info->sent_last_packet = 0;
-	clientconn_info->complete = 0;
-	clientconn_info->retry_last_data = 0;
-	clientconn_info->last_num_bytes_read = 0;
-    clientconn_info->last_action = clock();
-
-	return;
 }
 
 void send_error_packet_to_client(int sockfd, int error_code, const char * error_message, struct sockaddr* client, int client_len) {

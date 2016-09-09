@@ -41,9 +41,9 @@ int find_free_clientconn_info(clientconninfo_t* clientconn_infos, uint8_t client
 
 int intialize_clientconn_info(clientconninfo_t* clientconn_info, char file_directory[], char buffer[], struct sockaddr_in* client);
 
-int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, struct sockaddr* client, int client_len);
-
 void reset_clientconn_info(clientconninfo_t* clientconn_info);
+
+int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, struct sockaddr* client, int client_len);
 
 void send_error_packet_to_client(int sockfd, int error_code, const char* error_message, struct sockaddr* client, int client_len);
 

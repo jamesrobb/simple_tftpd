@@ -185,6 +185,11 @@ int main(int argc, char *argv[]) {
 				send_error_packet_to_client(sockfd, TFTP_ERROR_ACCESS_ILLEGAL_OP, "WRITE NOT PERMITTED", (struct sockaddr*) &client, client_len);
 				break;
 
+			default:
+
+				send_error_packet_to_client(sockfd, TFTP_ERROR_ACCESS_ILLEGAL_OP, "INVALID OPERATION", (struct sockaddr*) &client, client_len);
+				break;
+
 		}
 
 		if(no_free_connections) {

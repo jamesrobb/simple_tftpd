@@ -19,6 +19,8 @@
 
 #define MAX_FILENAME_LENGTH 512
 
+#define MODE_STRING_LENGTH_MAX 10
+
 typedef struct _rq_packet_ {
 	int opcode;
 	char mode[10];

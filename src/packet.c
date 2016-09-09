@@ -15,7 +15,7 @@ void read_request_packet(rqpacket_t* req_packet, char buffer[]) {
     //printf("mode_end: %d\n", mode_end);
     strncpy(req_packet->mode, buffer + mode_start, mode_end - mode_start + 1);
 
-    for(int i = 0; i < 10; i++) {
+    for(int i = 0; i < MODE_STRING_LENGTH_MAX; i++) {
 
         if(req_packet->mode[i] == '\0') {
             break;
