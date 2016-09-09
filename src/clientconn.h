@@ -12,6 +12,7 @@
 #include "packet.h"
 
 #define FILE_NOT_FOUND	1
+#define FILE_ACCESS_VIOLATION 2
 
 typedef struct _clientconn_ {
 	FILE* fp;
@@ -19,6 +20,7 @@ typedef struct _clientconn_ {
 	uint16_t block_number;
 	unsigned short port_number;
 	uint8_t available;
+	uint8_t sent_last_packet;
 	uint8_t complete;
 	uint8_t retry_last_data;
 	uint8_t last_num_bytes_read;
@@ -40,6 +42,6 @@ int send_data_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, st
 
 void reset_clientconn_info(clientconninfo_t* clientconn_info);
 
-void send_error_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, int error_code, const char* error_message, struct sockaddr* client, int client_len);
+void send_error_packet_to_client(int sockfd, int error_code, const char* error_message, struct sockaddr* client, int client_len);
 
 #endif

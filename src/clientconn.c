@@ -180,6 +180,7 @@ void reset_clientconn_info(clientconninfo_t* clientconn_info) {
 	clientconn_info->block_number = 1;
 	clientconn_info->port_number = 0;
 	clientconn_info->available = 1;
+    	clientconn_info->sent_last_packet = 0;
 	clientconn_info->complete = 0;
 	clientconn_info->retry_last_data = 0;
 	clientconn_info->last_num_bytes_read = 0;
@@ -187,7 +188,7 @@ void reset_clientconn_info(clientconninfo_t* clientconn_info) {
 	return;
 }
 
-void send_error_packet_to_client(int sockfd, clientconninfo_t* clientconn_info, int error_code, const char * error_message, struct sockaddr* client, int client_len) {
+void send_error_packet_to_client(int sockfd, int error_code, const char * error_message, struct sockaddr* client, int client_len) {
 
     int error_message_len = strlen(error_message);
     char error_buffer[error_message_len + 5]; // length of string plus terminator plus tftp header info
