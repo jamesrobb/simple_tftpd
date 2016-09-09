@@ -74,11 +74,9 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	// start listening and set a backlog of 1
-	//listen(sockfd, 1);
-
-	//int req_established = 0;
-
+	// this is our listen loop, we grab a udp packet one at a time, figure out if there is a client connection active.
+	// if there is no active connection we create one, otherwise we find the connection based on the source port and then
+	// start/continue serving the file to the client
 	while(1) {
 
 		clientconninfo_t* current_conn;
