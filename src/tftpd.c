@@ -15,7 +15,7 @@
 
 int main(int argc, char *argv[]) {
 
-	uint8_t max_conns = 2;
+	uint8_t max_conns = 5;
 
 	if(argc != 3 || argc > 3) {
 		print_usage();
