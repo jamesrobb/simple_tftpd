@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
 		clear_complete_clientconn_infos(clientconn_infos, max_conns);
 
 		opcode_recv = read_opcode(buffer);
-		printf("opcode_rev: %d\n", opcode_recv);
+		//printf("opcode_rev: %d\n", opcode_recv);
 
 		switch(opcode_recv) {
 
@@ -161,7 +161,6 @@ int main(int argc, char *argv[]) {
 				//printf("ack #%d on port %d\n", ack_packet.block_number, client.sin_port);
 
 				if(current_conn->block_number != ack_packet.block_number + 1) {
-					//current_conn->block_number--;
 					current_conn->retry_last_data = 1;
 				} else {
 
